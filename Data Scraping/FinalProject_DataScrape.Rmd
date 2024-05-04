@@ -1,0 +1,82 @@
+
+```{r}
+library(rvest)
+library(kableExtra)
+library(readr) 
+library(kableExtra) 
+library(ggplot2)
+library(tidymodels) 
+library(dplyr)
+library(zoo)
+library(janitor)
+library(GGally)
+library(ggpubr)
+library(gridExtra)
+library(forecast)
+library(DescTools)
+```
+
+
+```{r}
+## Scraping Data For Final Project
+
+draftStats <- tibble()
+
+for (i in seq(from = 2013, to = 2023)) {
+  
+#URL and Scraping Data for Colorado Rapids
+  url <- paste0("https://www.basketball-reference.com/draft/NBA_",i,".html")
+  NBADraft <- read_html(url)
+
+  #Cleaning Data
+  CleanData <- NBADraft %>%
+    html_nodes(xpath = '//*[(@id = "stats")]') %>%
+    html_table() %>%
+    data.frame() %>%
+    janitor::row_to_names(row_number = 1) %>%
+    janitor::clean_names(case = "none") %>%
+    mutate(Year = i)
+  
+  #Updating Final Data Frame
+  draftStats <- bind_rows(draftStats, CleanData)
+  
+}
+```
+
+```{r}
+draftStats
+```
+
+```{r}
+draftStats <-head(draftStats, -2)
+```
+
+
+```{r}
+draftStats$Rk <- as.integer(draftStats$Rk)
+draftStats <- draftStats %>%
+  filter(College != "") %>%
+  group_by(Year) %>%
+  mutate(Rank = order(Rk)) %>%
+  filter(Rank < 11)
+```
+
+
+```{r}
+names(draftStats)[15] <- "MP_PG"
+names(draftStats)[16] <- "PTS_PG"
+names(draftStats)[17] <- "TRB_PG"
+names(draftStats)[18] <- "AST_PG"
+draftStats
+write.csv(draftStats, file = "draftStats.csv")
+```
+
+```{r}
+DraftCollege <- read_csv("DraftPicksCollege.csv")
+DraftCollege
+Draft <- merge(draftStats, DraftCollege, sort = FALSE)
+Draft
+write.csv(Draft, file = "draftStats.csv")
+```
+
+
