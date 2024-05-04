@@ -1,0 +1,1176 @@
+---
+title: "STAT 451: Final Project"
+author: "Aiden Kempen"
+output: pdf_document
+header-includes:
+  - \usepackage{xcolor}
+  - \usepackage{framed}
+---
+
+<!-- STUDENTS: change the "title" and "author above"
+
+DO NOT EDIT THE SECTION BELOW -->
+\colorlet{shadecolor}{gray!10}
+
+```{r setup, include=FALSE}
+library(knitr)
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, fig.width = 6, fig.height = 6)
+```
+
+\newcommand{\answerstart}{ \colorlet{shadecolor}{orange!20}
+\begin{shaded} }
+\newcommand{\answerend}{  \end{shaded} \colorlet{shadecolor}{gray!10}}
+<!-- STUDENTS: DO NOT EDIT THE SECTION ABOVE 
+start here, insert homework below -->
+
+```{r message = FALSE, include = FALSE}
+#Libraries
+
+library(rvest)
+library(kableExtra)
+library(readr) 
+library(kableExtra) 
+library(ggplot2)
+library(tidymodels) 
+library(dplyr)
+library(zoo)
+library(janitor)
+library(GGally)
+library(ggpubr)
+library(gridExtra)
+library(forecast)
+library(DescTools)
+library(glmnet)
+library(tidyr)
+library(leaps)
+library(caret)
+library(tidyverse)
+```
+
+```{r}
+#Reading Data
+Draft <- read_csv("draftStats.csv")
+Draft <- Draft %>%
+  select(-1)
+Draft
+```
+
+
+**EDA: Exploratory Data Analysis**
+
+```{r fig.height=10, fig.width=12}
+new_Draft1 <- Draft %>% 
+  group_by(Year,College) %>% 
+  summarize(total_picks = n())
+
+#Plot of Most Top 10 College Picks Per Year
+plot1 <- ggplot(data = new_Draft1, 
+                mapping= aes(x= reorder(College, -total_picks),
+                             y = total_picks,
+                             fill = College))+
+  geom_bar(stat = "identity", color = "black")+
+  guides(fill = FALSE)+
+  facet_wrap(~Year, scales = "free_x")+
+  labs(x = "College",
+       y = "Total Picks",
+       title = "Bar Plot of Total Top 10 Picks From Each College Based On Each Year Of the NBA Draft", 
+       caption = "Source: https://www.basketball-reference.com/")+
+theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1),
+      plot.title = element_text(size=18))+
+  scale_y_continuous(limits = c(0, 4), breaks = c(0,1,2,3,4))
+
+plot1
+```
+
+```{r}
+#Plot of Most Top 10 College Picks
+new_Draft2 <- Draft %>% 
+  group_by(College) %>% 
+  summarize(total_picks = n())
+
+plot2 <- ggplot(data = new_Draft2, 
+                mapping= aes(x= reorder(College, -total_picks),
+                             y = total_picks,
+                             fill = College))+
+  geom_bar(stat = "identity", color = "black")+
+  guides(fill = FALSE)+
+  labs(x = "College",
+       y = "Total Picks",
+       title = "Bar Plot of Total Top 10 Draft Picks From Each College From 2013-2023", 
+       caption = "Source: https://www.basketball-reference.com/")+
+theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1, size =6),
+      plot.title = element_text(size=10))+
+  scale_y_continuous(limits = c(0, 15), breaks = c(0,5,10,15))
+
+plot2
+
+```
+
+```{r}
+#BoxPlot Of Points,Reb,Ast,etc for each pick number sorted by mean.
+plot3 <- ggplot(data = Draft,
+                mapping= aes(x= reorder(Pk, 
+                                        PTS_PG, 
+                                        mean, 
+                                        na.rm=TRUE),
+                             y = PTS_PG))+
+  geom_boxplot() + 
+  coord_flip()+ 
+  labs(x = "Pick Number",
+       y = "Points Per Game In NBA",
+       title = "Box Plot of Top 10 Picks Points Per Game In The NBA From 2013-2023 Sorted By Mean", 
+       caption = "Source: https://www.basketball-reference.com/")+
+  theme(axis.text = element_text(hjust=0.8),
+        plot.title = element_text(size =10)) +
+  scale_y_continuous(limits = c(0, 30), breaks = c(0,10,20,30))
+
+plot3
+```
+
+
+```{r}
+#Total Rebounds Per Game
+plot4 <- ggplot(data = Draft,
+                mapping= aes(x= reorder(Pk, 
+                                        TRB_PG, 
+                                        mean, 
+                                        na.rm=TRUE),
+                             y = TRB_PG))+
+  geom_boxplot() + 
+  coord_flip()+ 
+  labs(x = "NBA Draft Pick Number",
+       y = "Total Rebounds Per Game In NBA",
+       title = "Box Plot of Top 10 Picks Total Rebounds Per Game In The NBA From 2013-2023 Sorted By Mean", 
+       caption = "Source: https://www.basketball-reference.com/")+
+  theme(axis.text = element_text(hjust=0.8),
+        plot.title = element_text(size =9)) +
+  scale_y_continuous(limits = c(0, 12), breaks = c(0,2,4,6,8,10,12))
+
+plot4
+```
+
+
+```{r}
+#Assists Per Game
+plot5 <- ggplot(data = Draft,
+                mapping= aes(x= reorder(Pk, 
+                                        AST_PG, 
+                                        mean, 
+                                        na.rm=TRUE),
+                             y = AST_PG))+
+  geom_boxplot() + 
+  coord_flip()+ 
+  labs(x = "NBA Draft Pick Number",
+       y = "Assists Per Game In NBA",
+       title = "Box Plot of Top 10 Picks Assists Per Game In The NBA From 2013-2023 Sorted By Mean", 
+       caption = "Source: https://www.basketball-reference.com/")+
+  theme(axis.text = element_text(hjust=0.8),
+        plot.title = element_text(size =10)) +
+  scale_y_continuous(limits = c(0, 10), breaks = c(0,2,4,6,8,10))
+
+plot5
+```
+
+```{r fig.height=6, fig.width=16}
+#Plot something about years and when they were drafted or about years in college and how they have performed in NBA
+new_Draft3 <- Draft %>%
+  mutate(COL_Years = as.factor(COL_Years))
+
+plot6 <- ggplot(data = new_Draft3, 
+                mapping= aes(x= Pk,
+                             fill = COL_Years))+
+  geom_bar( color = "black",position = "dodge")+
+  #facet_wrap(~Pk)+
+  #guides(fill = FALSE)+
+  labs(x = "NBA Draft Pick Number",
+       y = "Count",
+       title = "Bar Plot of When Players Were Drafted Based On How Many Years They Spent In College From 2013-2023",
+       fill = "Years In College", 
+       caption = "Source: https://www.basketball-reference.com/")+
+  scale_x_continuous(limits = c(0, 16), 
+                   breaks = c(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15)) +
+  scale_y_continuous(limits = c(0, 10), 
+                   breaks = c(1,2,3,4,5,6,7,8,9,10))
+
+plot6
+```
+
+```{r}
+#Correlation between years in NBA and years in College
+plot7 <- ggplot(data = Draft, 
+                mapping = aes(x = COL_G_PG, y = Yrs)) +
+  geom_point() +
+  geom_jitter(width = 0.1) +
+  geom_smooth(method = "loess", se= FALSE)+
+  labs(x = "Games Played In College",
+       y = "Years In NBA",
+       title = "Top 10 College Draft Picks From 2013-2023 Games Played In College vs NBA Years",
+       caption="Source: https://www.basketball-reference.com/")+
+  theme(plot.title = element_text(size =10))
+
+plot7
+```
+
+```{r warning = FALSE, message= FALSE}
+#Show correlation between possible college stats and how it has led to performance in NBA
+plot8 <- ggplot(data = Draft, 
+                mapping = aes(x = COL_PTS_PG, y = PTS_PG)) +
+  geom_point() +
+  geom_jitter(width = 0.1) +
+  geom_smooth(method = "loess", se= FALSE)+
+  labs(x = "College Career Points Per Game",
+       y = "NBA Career Points Per Game",
+       title = "Top 10 College Draft Picks From 2013-2023 College Points Per Game vs NBA Points Per Game",
+       caption="Source: https://www.basketball-reference.com/")+
+  theme(plot.title = element_text(size =9)) +
+  scale_x_continuous(limits = c(0, 30), 
+                     breaks = c(0,10,20,30)) +
+  scale_y_continuous(limits = c(0, 30), 
+                     breaks = c(0,10,20,30))
+
+plot8
+```
+
+
+```{r warning = FALSE, message= FALSE}
+plot9 <- ggplot(data = Draft, 
+                mapping = aes(x = COL_AST_PG, y = AST_PG)) +
+  geom_point() +
+  geom_jitter(width = 0.1) +
+  geom_smooth(method = "loess", se= FALSE)+
+  labs(x = "College Career Assists Per Game",
+       y = "NBA Career Assists Per Game",
+       title = "Top 10 College Draft Picks From 2013-2023 College Assists Per Game vs NBA Assists Per Game",
+       caption="Source: https://www.basketball-reference.com/")+
+  theme(plot.title = element_text(size =9)) +
+  scale_x_continuous(limits = c(0, 10), 
+                     breaks = c(0,2,4,6,8,10)) +
+  scale_y_continuous(limits = c(0, 10), 
+                     breaks = c(0,2,4,6,8,10))
+
+plot9
+```
+
+
+```{r warning = FALSE, message= FALSE}
+plot10 <- ggplot(data = Draft, 
+                mapping = aes(x = COL_TRB_PG, y = TRB_PG)) +
+  geom_point() +
+  geom_jitter(width = 0.1) +
+  geom_smooth(method = "loess", se= FALSE)+
+  labs(x = "College Career Rebounds Per Game",
+       y = "NBA Career Rebounds Per Game",
+       title = "Top 10 College Draft Picks From 2013-2023 College Rebounds Per Game vs NBA Rebounds Per Game",
+       caption="Source: https://www.basketball-reference.com/")+
+  theme(plot.title = element_text(size =8)) +
+  scale_x_continuous(limits = c(0, 10), 
+                     breaks = c(0,2,4,6,8,10)) +
+  scale_y_continuous(limits = c(0, 10), 
+                     breaks = c(0,2,4,6,8,10))
+
+plot10
+```
+```{r}
+plot11 <- ggplot(data = Draft, 
+                mapping = aes(x = `COL_FG%_PG`, y = FG_percent)) +
+  geom_point() +
+  geom_jitter(width = 0.1) +
+  geom_smooth(method = "loess", se= FALSE)+
+  labs(x = "College Career FG% Per Game",
+       y = "NBA Career FG%",
+       title = "Top 10 College Draft Picks From 2013-2023 College FG% Per Game vs NBA FG%.",
+       caption="Source: https://www.basketball-reference.com/")+
+  theme(plot.title = element_text(size =10)) 
+
+plot11
+```
+
+
+```{r}
+plot12 <- ggplot(data = Draft, 
+                mapping = aes(x = Pk, y = WS )) +
+  geom_point() +
+  geom_jitter(width = 0.1) +
+  geom_smooth(method = "loess", se= FALSE)+
+  labs(x = "NBA Draft Pick Number",
+       y = "NBA Win Shares Of Player",
+       title = "Top 10 College Draft Picks From 2013-2023 NBA Draft Pick Number vs NBA Win Shares",
+       caption="Source: https://www.basketball-reference.com/")+
+  theme(plot.title = element_text(size =10)) 
+
+plot12
+```
+
+
+
+**Question One: What Are The Most Significant Stats To Increase Draft Stocks**
+
+```{r message = FALSE}
+##GGpairs Plot 1
+Draft%>%
+  select(-Player, -Tm, -College, -Rk) %>%
+  select(Rank,1:7) %>%
+  ggpairs(upper = list(continuous = wrap("cor", size = 2)))+
+  labs(title = "GGPairs Plot Of NBA Stats vs. Rank for American Top Ten Draft Picks from 2013-2023",
+       caption = "Source: https://www.basketball-reference.com/")+
+  theme(axis.text = element_text(size = 5),
+        plot.title = element_text(size =10))
+```
+
+
+```{r message = FALSE}
+##GGpairs Plot 2
+Draft%>%
+  select(-Player, -Tm, -College, -Rk) %>%
+  select(Rank,8:14) %>%
+  ggpairs(upper = list(continuous = wrap("cor", size = 2)))+
+  labs(title = "GGPairs Plot Of NBA Stats vs Rank for American Top Ten Draft Picks from 2013-2023",
+       caption = "Source: https://www.basketball-reference.com/")+
+  theme(axis.text = element_text(size = 5),
+        plot.title = element_text(size =10),
+        text = element_text(size = 6.5))
+```
+
+
+```{r message = FALSE}
+##GGpairs Plot 3
+Draft%>%
+  select(-Player, -Tm, -College, -Rk) %>%
+  select(Rank,21:28) %>%
+  ggpairs(upper = list(continuous = wrap("cor", size = 2)))+
+  labs(title = "GGPairs Plot Of College Stats vs. Rank for American Top Ten Draft Picks from 2013-2023",
+       caption = "Source: https://www.sports-reference.com/cbb/")+
+  theme(axis.text = element_text(size = 5),
+        plot.title = element_text(size =10),
+        text = element_text(size = 5))
+```
+
+
+```{r message = FALSE, warning = FALSE}
+##GGpairs Plot 4
+Draft%>%
+  select(-Player, -Tm, -College, -Rk) %>%
+  select(Rank,29:37) %>%
+  ggpairs(upper = list(continuous = wrap("cor", size = 2)))+
+  labs(title = "GGPairs Plot Of College Stats vs. Rank for American Top Ten Draft Picks from 2013-2023",
+       caption = "Source: https://www.sports-reference.com/cbb/")+
+  theme(axis.text = element_text(size = 5),
+        plot.title = element_text(size =10),
+        text = element_text(size = 5))
+```
+
+
+```{r message = FALSE, warning = FALSE}
+##GGpairs Plot 5
+Draft%>%
+  select(-Player, -Tm, -College, -Rk) %>%
+  select(Rank,38:46) %>%
+  ggpairs(upper = list(continuous = wrap("cor", size = 2)))+
+  labs(title = "GGPairs Plot Of College Stats vs. Rank for American Top Ten Draft Picks from 2013-2023",
+       caption = "Source: https://www.sports-reference.com/cbb/")+
+  theme(axis.text = element_text(size = 5),
+        plot.title = element_text(size =10),
+        text = element_text(size = 5))
+```
+
+```{r}
+set.seed(2023)
+#Selection Methods For Variables To Include In The Model using College Data
+College <- Draft %>%
+  select(Rank, 25:50)# %>%
+  #mutate(Pk = as.factor(Pk))
+College
+```
+
+
+```{r warning = FALSE}
+#All Possible Subset Selection
+regsubsets.out <- regsubsets(Rank~., data = College,
+                             nbest = 1,
+                             nvmax = 25,
+                             method = "exhaustive")
+
+summary.out <- summary(regsubsets.out)
+
+plot(summary.out$bic, xlab = "Number of Variables", ylab = "BIC", type = "l")
+bic_min = which.min(summary.out$bic) # 6
+points(bic_min, summary.out$bic[bic_min], col = "red", cex = 2, pch = 20)
+
+plot(summary.out$adjr2, xlab = "Number of Variables", ylab = "Adjusted R^2", type = "l")
+adjr2_max = which.max(summary.out$adjr2) # 6
+points(adjr2_max, summary.out$adjr2[adjr2_max], col = "red", cex = 2, pch = 20)
+
+#Model With Lowest BIC
+kable(summary.out$which[which.min(summary.out$bic),],
+      booktabs=T,
+      format = "pandoc",
+      digits=c(3),
+      caption = "College Best Subset Selection Using BIC",
+      col.names = c("Keep Variable")) %>%
+  kable_styling(latex_options = "hold_position")
+
+#BIC Selected 3 Variables
+# College ORB Per Game
+# College TOV Per Game
+# College Years
+
+#Model With Highest Adjusted R^2
+kable(summary.out$which[which.max(summary.out$adjr2),],
+      booktabs=T,
+      format = "pandoc",
+      digits=c(3),
+      caption = "College Best Subset Selection With Adjusted R^2",
+      col.names = c("Keep Variable")) %>%
+  kable_styling(latex_options = "hold_position")
+
+#ADJR^2 Selected 12 Variables
+# College Games Played
+# College Minutes Played
+# College FG Per Game
+# College FG% Per Game
+# College 2 Point Percentage Per Game
+# College Offensive Rebounds Per Game
+# College Defensive Rebounds Per Game
+# College Total Rebounds Per Game
+# College Assists Per Game
+# College Blocks Per Game
+# College Turnovers Per Game
+# College Years
+```
+
+
+```{r warning = FALSE}
+#Forward Selection
+regsubsets.out <- regsubsets(Rank~., data = College,
+                             nbest = 1,
+                             nvmax = 25,
+                             method = "forward")
+
+summary.out <- summary(regsubsets.out)
+
+plot(summary.out$bic, xlab = "Number of Variables", ylab = "BIC", type = "l")
+bic_min = which.min(summary.out$bic) # 6
+points(bic_min, summary.out$bic[bic_min], col = "red", cex = 2, pch = 20)
+
+plot(summary.out$adjr2, xlab = "Number of Variables", ylab = "Adjusted R^2", type = "l")
+adjr2_max = which.max(summary.out$adjr2) # 6
+points(adjr2_max, summary.out$adjr2[adjr2_max], col = "red", cex = 2, pch = 20)
+
+#Model With Lowest BIC
+kable(summary.out$which[which.min(summary.out$bic),],
+      booktabs=T,
+      format = "pandoc",
+      digits=c(3),
+      caption = "College Forward Selection Using BIC",
+      col.names = c("Keep Variable")) %>%
+  kable_styling(latex_options = "hold_position")
+
+#BIC Selected 3 Variables
+# College TRB Per Game
+# College AST Per Game
+# College Years
+
+#Model With Highest Adjusted R^2
+kable(summary.out$which[which.max(summary.out$adjr2),],
+      booktabs=T,
+      format = "pandoc",
+      digits=c(3),
+      caption = "College Forward Selection With Adjusted R^2",
+      col.names = c("Keep Variable")) %>%
+  kable_styling(latex_options = "hold_position")
+
+#ADJR^2 Selected 12 Variables
+# College Games Started
+# College Minutes Played
+# College FGA Per Game
+# College FG% Per Game
+# College 2 Point Percentage Per Game
+# College ORB Per Game
+# College DRB Per Game
+# College Total Rebounds Per Game
+# College Assists Per Game
+# College Blocks Per Game
+# College Turnovers Per Game
+# College Years
+```
+
+
+```{r warning = FALSE}
+#Backward selection
+regsubsets.out <- regsubsets(Rank~., data = College,
+                             nbest = 1,
+                             nvmax = 25,
+                             method = "backward")
+
+summary.out <- summary(regsubsets.out)
+
+plot(summary.out$bic, xlab = "Number of Variables", ylab = "BIC", type = "l")
+bic_min = which.min(summary.out$bic) # 6
+points(bic_min, summary.out$bic[bic_min], col = "red", cex = 2, pch = 20)
+
+plot(summary.out$adjr2, xlab = "Number of Variables", ylab = "Adjusted R^2", type = "l")
+adjr2_max = which.max(summary.out$adjr2) # 6
+points(adjr2_max, summary.out$adjr2[adjr2_max], col = "red", cex = 2, pch = 20)
+
+#Model With Lowest BIC
+kable(summary.out$which[which.min(summary.out$bic),],
+      booktabs=T,
+      format = "pandoc",
+      digits=c(3),
+      caption = "College Backward Selection Using BIC",
+      col.names = c("Keep Variable")) %>%
+  kable_styling(latex_options = "hold_position")
+
+#BIC Selected 3 Variables
+# College ORB Per Game
+# College AST Per Game
+# College Years
+
+#Model With Highest Adjusted R^2
+kable(summary.out$which[which.max(summary.out$adjr2),],
+      booktabs=T,
+      format = "pandoc",
+      digits=c(3),
+      caption = "College Backward Selection With Adjusted R^2",
+      col.names = c("Keep Variable")) %>%
+  kable_styling(latex_options = "hold_position")
+
+#ADJR^2 Selected 14 Variables
+# College Games Played
+# College Minutes Played
+# College FG% Per Game
+# College 2 Points Attempts Per Game
+# College 2 Point Percentage Per Game
+# College Offensive Rebounds Per Game
+# College Defensive Rebounds Per Game
+# College Assists Per Game
+# College Total Rebounds Per Game
+# College Blocks Per Game
+# College Turnovers Per Game
+# College Years
+```
+
+```{r warning = FALSE}
+#LASSO
+#Lasso Regression
+#Setting seed and initializing x, y,and list of lambdas
+set.seed(2023)
+y <- College$'Rank'
+x <- College %>% 
+  select(-Rank) %>% 
+  scale() %>% 
+  data.matrix()
+
+lambdas <- 10^seq(3, -3, by = -.1)
+
+# fitting lasso regression using cross-validation
+cv_model <- cv.glmnet(x, y, alpha = 1, lambda = lambdas)
+( best_lambda <- cv_model$lambda.min )
+
+# optimal lambda to find final lasso regression model
+lasso_model2 <- glmnet(x, y, alpha = 1, lambda = best_lambda)
+
+lasso_model2 %>%  
+  tidy() %>%
+  mutate(term = c("Intercept","FT% Per Game","ORB Per Game","TRB Per Game",
+                  "AST Per Game","BLK Per Game","TOV Per Game","PTS Per Game",
+                  "Years In College")) %>%
+  select(term,estimate,lambda) %>%
+  kable(booktabs=T,
+        format = "pandoc",
+        digits=c(3,3,3,3),
+        caption = "MLR Model Estimating NBA Draft Rank After Lasso Regression With Cross Validation For 2013-2023 NBA Top Ten College Draft Picks",
+        col.names = c("Predictor","Estimate","Lambda")) %>%
+  kable_styling(latex_options = "hold_position")
+
+#Lasso Selected 
+#FT% Per Game
+#ORB Per Game
+#TRB Per Game
+#AST Per Game
+#BLK Per Game
+#TOV Per Game
+#PTS Per Game
+#College Years
+```
+
+```{r}
+#BASED ON ALL MODELS WE CAN CHOOSE BETWEEN 9-14 VARIABLES
+
+#BIC
+#ORB
+#Assists
+#Years
+
+#ADJR2:
+# College Games Played
+# College Minutes Played
+# College FG% Per Game
+# College 2 Point Percentage Per Game
+# College Offensive Rebounds Per Game
+# College Defensive Rebounds Per Game
+# College Total Rebounds Per Game
+# College Assists Per Game
+# College Blocks Per Game
+# College Turnovers Per Game
+# College Years
+
+#Lasso:
+#FT% Per Game
+#ORB Per Game
+#TRB Per Game
+#AST Per Game
+#BLK Per Game
+#TOV Per Game
+#PTS Per Game
+#College Years
+
+#Chose these variables based off most consistent in the models
+#Believe these may be the most important attributes that we have in the data that contribute to College Rank Value.
+```
+
+
+
+**Question Two: Based on College Stats Can We Predict Where Players Will Be Drafted**
+
+```{r warning = FALSE}
+#Predictive Model Building
+#Splitting train and test
+training.samples <- College$Rank %>%
+  createDataPartition(p = 0.7, list = FALSE)
+
+train.data  <- College[training.samples, ]
+test.data <- College[-training.samples, ]
+```
+
+
+```{r warning = FALSE}
+#MLR
+#Using BIC
+model1 <- lm(Rank~COL_ORB_PG + COL_AST_PG+ COL_Years ,data=train.data)
+
+model1 %>% 
+  tidy() %>%
+  mutate(p.value = scales::pvalue(p.value)) %>%
+  kable(booktabs=T,digits=c(3,3,3,3),
+        caption = "MLR Model Estimating Draft Rank Using Multiple Variables",
+        col.names = c("Predictor", "Estimate", "Std Error", "t stat",
+                      "p-value"))%>%
+  kable_styling(latex_options = "hold_position")
+
+# Make predictions
+predictions <- model1 %>% 
+  predict(test.data)
+
+# Model performance
+# (a) Prediction error, RMSE
+model1_RMSE <- RMSE(predictions, test.data$Rank)
+# (b) R-square
+model1_R2 <- R2(predictions, test.data$Rank)
+
+model1_RMSE
+model1_R2
+```
+
+
+```{r warning = FALSE}
+#MLR
+#Using Accuracy
+model2 <- lm(Rank~COL_G_PG +COL_MP_PG + `COL_FG_PG` + `COL_2P%_PG` + COL_ORB_PG + COL_DRB_PG + COL_TRB_PG +  COL_AST_PG + COL_BLK_PG + COL_TOV_PG + COL_Years ,data=train.data)
+
+model2 %>% 
+  tidy() %>%
+  mutate(p.value = scales::pvalue(p.value)) %>%
+  kable(booktabs=T,digits=c(3,3,3,3),
+        caption = "MLR Model Estimating Draft Rank Using Multiple Variables",
+        col.names = c("Predictor", "Estimate", "Std Error", "t stat",
+                      "p-value"))%>%
+  kable_styling(latex_options = "hold_position")
+
+# Make predictions
+predictions <- model2 %>% 
+  predict(test.data)
+
+# Model performance
+# (a) Prediction error, RMSE
+model2_RMSE <- RMSE(predictions, test.data$Rank)
+# (b) R-square
+model2_R2 <- R2(predictions, test.data$Rank)
+
+model2_RMSE
+model2_R2
+
+```
+
+```{r}
+#Weighted Least Squares : Weighting Years In College
+#BIC
+model3 <- lm(Rank~COL_ORB_PG + COL_AST_PG+ COL_Years ,data=train.data, weights = COL_Years)
+
+model3 %>% 
+  tidy() %>%
+  mutate(p.value = scales::pvalue(p.value)) %>%
+  kable(booktabs=T,digits=c(3,3,3,3),
+        caption = "Weighted Least Squares Model Estimating Draft Rank Using Multiple Variables Weighted By College Years",
+        col.names = c("Predictor", "Estimate", "Std Error", "t stat",
+                      "p-value"))%>%
+  kable_styling(latex_options = "hold_position")
+
+# Make predictions
+predictions <- model3 %>% 
+  predict(test.data)
+
+# Model performance
+# (a) Prediction error, RMSE
+model3_RMSE <- RMSE(predictions, test.data$Rank)
+# (b) R-square
+model3_R2 <- R2(predictions, test.data$Rank)
+
+model3_RMSE
+model3_R2
+```
+
+
+```{r}
+#Weighted Least Squares
+#ADJR2
+model4 <- lm(Rank~COL_G_PG + COL_MP_PG + `COL_FG_PG` + `COL_2P%_PG` + COL_ORB_PG + COL_DRB_PG + COL_TRB_PG +  COL_AST_PG + COL_BLK_PG + COL_TOV_PG + COL_Years ,data=train.data, weights = COL_Years)
+
+model4 %>% 
+  tidy() %>%
+  mutate(p.value = scales::pvalue(p.value)) %>%
+  kable(booktabs=T,digits=c(3,3,3,3),
+        caption = "Weighted Least Squares Model Estimating Draft Rank Using Multiple Variables Weighted By College Years",
+        col.names = c("Predictor", "Estimate", "Std Error", "t stat",
+                      "p-value"))%>%
+  kable_styling(latex_options = "hold_position")
+
+# Make predictions
+predictions <- model4 %>% 
+  predict(test.data)
+
+# Model performance
+# (a) Prediction error, RMSE
+model4_RMSE <- RMSE(predictions, test.data$Rank)
+# (b) R-square
+model4_R2 <- R2(predictions, test.data$Rank)
+
+model4_RMSE
+model4_R2
+```
+
+
+```{r}
+#Ridge
+set.seed(2023)
+
+#Ridge
+y <- train.data$'Rank'
+x <- train.data %>% 
+  select(-Rank) %>% 
+  scale() %>% 
+  data.matrix()
+
+lambdas <- 10^seq(3, -3, by = -.1)
+
+# fitting ridge regression using cross-validation
+cv_model <- cv.glmnet(x, y, alpha = 0, lambda = lambdas)
+( best_lambda <- cv_model$lambda.min )
+
+# optimal lambda to find final ridge regression model
+ridge_model1 <- glmnet(x, y, alpha = 0, lambda = best_lambda)
+
+ridge_model1 %>%  
+  tidy() %>%
+  mutate(term = c("Intercept","Games","Games Started","Minutes Played",
+                  "FG Per Game","FGA Per Game", "FG% Per Game", "2P Per Game",
+                  "2PA Per Game","2P% Per Game","3P Per Game", "3PA Per Game",
+                  "3P% Per Game", "FT Per Game", "FTA Per Game", 
+                  "FT% Per Game", "ORB Per Game", "DRB Per Game", 
+                  "TRB Per Game", "AST Per Game","STL Per Game",
+                  "BLK Per Game", "TOV Per Game", "PF Per Game",
+                  "PTS Per Game", "SOS", "Years"
+                  )) %>%
+  select(term,estimate,lambda) %>%
+  kable(booktabs=T,
+        format = "pandoc",
+        digits=c(3,3,3,3),
+        caption = "MLR Model Estimating NBA Draft Rank After Ridge Regression With Cross Validation For 2013-2023 NBA Top Ten College Draft Picks",
+        col.names = c("Predictor","Estimate","Lambda")) %>%
+  kable_styling(latex_options = "hold_position")
+
+x2 <- test.data %>% 
+  select(-Rank) %>% 
+  scale() %>% 
+  data.matrix()
+
+# Make predictions
+predictions <- ridge_model1 %>% 
+  predict(x2)
+
+# Model performance
+# (a) Prediction error, RMSE
+ridge_model1_RMSE <- RMSE(predictions, test.data$Rank)
+# (b) R-square
+ridge_model1_R2 <- R2(predictions, test.data$Rank)
+
+ridge_model1_RMSE
+ridge_model1_R2
+
+```
+
+
+```{r}
+set.seed(2023)
+
+#Lasso
+y <- train.data$'Rank'
+x <- train.data %>% 
+  select(-Rank) %>% 
+  scale() %>% 
+  data.matrix()
+
+lambdas <- 10^seq(3, -3, by = -.1)
+
+# fitting lasso regression using cross-validation
+cv_model <- cv.glmnet(x, y, alpha = 1, lambda = lambdas)
+( best_lambda <- cv_model$lambda.min )
+
+# optimal lambda to find final lasso regression model
+lasso_model1 <- glmnet(x, y, alpha = 1, lambda = best_lambda)
+
+lasso_model1 %>%  
+  tidy() %>%
+  mutate(term = c("Intercept","FTA Per Game","ORB Per Game","TRB Per Game",
+                  "TOV Per Game","Years In College")) %>%
+  select(term,estimate,lambda) %>%
+  kable(booktabs=T,
+        format = "pandoc",
+        digits=c(3,3,3,3),
+        caption = "MLR Model Estimating NBA Draft Rank After Lasso Regression With Cross Validation For 2013-2023 NBA Top Ten College Draft Picks",
+        col.names = c("Predictor","Estimate","Lambda")) %>%
+  kable_styling(latex_options = "hold_position")
+
+x2 <- test.data %>% 
+  select(-Rank) %>% 
+  scale() %>% 
+  data.matrix()
+
+# Make predictions
+predictions <- lasso_model1 %>% 
+  predict(x2)
+
+# Model performance
+# (a) Prediction error, RMSE
+lasso_model1_RMSE <- RMSE(predictions, test.data$Rank)
+# (b) R-square
+lasso_model1_R2 <- R2(predictions, test.data$Rank)
+
+lasso_model1_RMSE
+lasso_model1_R2
+```
+
+
+```{r}
+#Elastic Net
+set.seed(2023)
+cv5 = trainControl(method = "cv", number = 5)
+elnet = train(Rank~.,data=train.data,
+                     metric = "RMSE",
+                     preProcess = c("center", "scale"),
+                     tuneGrid = expand.grid(.alpha = seq(0, 1, length.out =
+                                                           10),
+                                            .lambda = seq(0, 5, length.out =
+                                                            101)),
+                     method = "glmnet", trControl = cv5)
+elnet$bestTune
+
+elastic_model1 <- glmnet(x, y, alpha = elnet$bestTune$alpha, lambda =
+elnet$bestTune$lambda)
+
+elastic_model1 %>%  
+  tidy() %>%
+  mutate(term = c("Intercept","Games","Games Started","Minutes Played",
+                  "FG Per Game","FGA Per Game", "FG% Per Game", "2P Per Game",
+                  "2PA Per Game","2P% Per Game","3P Per Game", "3PA Per Game",
+                  "3P% Per Game", "FT Per Game", "FTA Per Game", 
+                  "FT% Per Game", "ORB Per Game", "DRB Per Game", 
+                  "TRB Per Game", "AST Per Game","STL Per Game",
+                  "BLK Per Game", "TOV Per Game", "PF Per Game",
+                  "PTS Per Game", "SOS", "Years")) %>%
+  select(term,estimate,lambda) %>%
+  kable(booktabs=T,
+        format = "pandoc",
+        digits=c(3,3,3,3),
+        caption = "MLR Model Estimating NBA Draft Rank After Elastic Net Regression With Cross Validation For 2013-2023 NBA Top Ten College Draft Picks",
+        col.names = c("Predictor","Estimate","Lambda")) %>%
+  kable_styling(latex_options = "hold_position")
+
+# Make predictions
+predictions <- elastic_model1 %>% 
+  predict(x2)
+
+# Model performance
+# (a) Prediction error, RMSE
+elastic_model1_RMSE <- RMSE(predictions, test.data$Rank)
+# (b) R-square
+elastic_model1_R2 <- R2(predictions, test.data$Rank)
+
+elastic_model1_RMSE
+elastic_model1_R2
+```
+
+
+```{r}
+#PCA
+prep_data <- recipe(Rank ~ ., data = train.data) |>
+  step_dummy(all_nominal_predictors()) |> 
+  step_normalize(all_predictors())
+
+PCR_10foldcv <- vfold_cv(train.data, v = 10)
+tune_df <- data.frame(M = seq_len(ncol(train.data) - 1))
+
+prep_data_pca <- prep_data |> 
+  step_pca(all_predictors(), num_comp = tune("M"))
+linear_spec <- linear_reg()
+
+workflow() |>
+  add_model(linear_spec) |> 
+  add_recipe(prep_data_pca) -> pca_workflow
+
+pca_workflow |>
+  tune_grid(resamples = PCR_10foldcv, grid = tune_df) -> pca_tune
+
+
+pca_tune |>
+  collect_metrics() |>
+  select(M, .metric, mean) |>
+  pivot_wider(names_from = .metric, values_from = mean) |> 
+  ggplot() +
+  geom_line(aes(M, rmse^2)) +
+  geom_point(aes(M, rmse^2))
+
+show_best(pca_tune, metric = "rmse", n = 1)
+
+#Final fit
+PCR_final <- finalize_workflow(pca_workflow, 
+                               select_best(pca_tune, metric = "rmse"))
+
+PCR_final_fit <- fit(PCR_final, data = train.data)
+
+postResample(predict(PCR_final_fit, test.data), test.data$Rank)
+```
+
+**Question Three: Can We Predict Where College Players Were Drafted Better By Using their Performance in the NBA.**
+
+```{r}
+#Setting Up Data
+College <- Draft %>%
+  select(Rank, 6:23)# %>%
+  #mutate(Pk = as.factor(Pk))
+College
+
+#Split into training/test
+training.samples <- College$Rank %>%
+  createDataPartition(p = 0.7, list = FALSE)
+
+train.data  <- College[training.samples, ]
+test.data <- College[-training.samples, ]
+
+```
+
+
+```{r}
+#Ridge
+set.seed(2023)
+
+#Ridge
+y <- train.data$'Rank'
+x <- train.data %>% 
+  select(-Rank) %>% 
+  scale() %>% 
+  data.matrix()
+
+lambdas <- 10^seq(3, -3, by = -.1)
+
+# fitting ridge regression using cross-validation
+cv_model <- cv.glmnet(x, y, alpha = 0, lambda = lambdas)
+( best_lambda <- cv_model$lambda.min )
+
+# optimal lambda to find final ridge regression model
+ridge_model2 <- glmnet(x, y, alpha = 0, lambda = best_lambda)
+
+ridge_model2 %>%  
+  tidy() %>%
+  mutate(term = c("Intercept", "Years", 
+                  "Games","MP","PTS","TRB","AST","FG%",
+                  "3P%","FT%","MP Per Game","PTS Per Game",
+                  "TRB Per Game","AST Per Game","WS", "WS_48",
+                  "BPM","VORP","Year Drafted"
+                  )) %>%
+  select(term,estimate,lambda) %>%
+  kable(booktabs=T,
+        format = "pandoc",
+        digits=c(3,3,3,3),
+        caption = "MLR Model Estimating NBA Rank After Ridge Regression With Cross Validation For 2013-2023 NBA Top Ten College Draft Picks",
+        col.names = c("Predictor","Estimate","Lambda")) %>%
+  kable_styling(latex_options = "hold_position")
+
+x2 <- test.data %>% 
+  select(-Rank) %>% 
+  scale() %>% 
+  data.matrix()
+
+# Make predictions
+predictions <- ridge_model2 %>% 
+  predict(x2)
+
+# Model performance
+# (a) Prediction error, RMSE
+ridge_model2_RMSE <- RMSE(predictions, test.data$Rank)
+# (b) R-square
+ridge_model2_R2 <- R2(predictions, test.data$Rank)
+
+ridge_model2_RMSE
+ridge_model2_R2
+```
+
+```{r}
+#Lasso
+set.seed(2023)
+
+#Lasso
+y <- train.data$'Rank'
+x <- train.data %>% 
+  select(-Rank) %>% 
+  scale() %>% 
+  data.matrix()
+
+lambdas <- 10^seq(3, -3, by = -.1)
+
+# fitting lasso regression using cross-validation
+cv_model <- cv.glmnet(x, y, alpha = 1, lambda = lambdas)
+( best_lambda <- cv_model$lambda.min )
+
+# optimal lambda to find final lasso regression model
+lasso_model2 <- glmnet(x, y, alpha = 1, lambda = best_lambda)
+
+lasso_model2 %>%  
+  tidy() %>%
+  mutate(term = c("Intercept", 
+                  "Games","FT%","MP Per Game","PTS Per Game",
+                  "TRB Per Game","WS","Year Drafted")) %>%
+  select(term,estimate,lambda) %>%
+  kable(booktabs=T,
+        format = "pandoc",
+        digits=c(3,3,3,3),
+        caption = "MLR Model Estimating NBA Draft Rank After Lasso Regression With Cross Validation For 2013-2023 NBA Top Ten College Draft Picks",
+        col.names = c("Predictor","Estimate","Lambda")) %>%
+  kable_styling(latex_options = "hold_position")
+
+x2 <- test.data %>% 
+  select(-Rank) %>% 
+  scale() %>% 
+  data.matrix()
+
+# Make predictions
+predictions <- lasso_model2 %>% 
+  predict(x2)
+
+# Model performance
+# (a) Prediction error, RMSE
+lasso_model2_RMSE <- RMSE(predictions, test.data$Rank)
+# (b) R-square
+lasso_model2_R2 <- R2(predictions, test.data$Rank)
+
+lasso_model2_RMSE
+lasso_model2_R2
+```
+
+```{r}
+#Elastic Net
+set.seed(2023)
+cv5 = trainControl(method = "cv", number = 5)
+elnet = train(Rank~.,data=train.data,
+                     metric = "RMSE",
+                     preProcess = c("center", "scale"),
+                     tuneGrid = expand.grid(.alpha = seq(0, 1, length.out =
+                                                           10),
+                                            .lambda = seq(0, 5, length.out =
+                                                            101)),
+                     method = "glmnet", trControl = cv5)
+elnet$bestTune
+
+elastic_model2 <- glmnet(x, y, alpha = elnet$bestTune$alpha, lambda =
+elnet$bestTune$lambda)
+
+elastic_model2 %>%  
+  tidy() %>%
+  mutate(term = c("Intercept", 
+                  "Games","FG%","3P%","FT%","MP Per Game","PTS Per Game",
+                  "TRB Per Game","WS","VORP","Year Drafted")) %>%
+  select(term,estimate,lambda) %>%
+  kable(booktabs=T,
+        format = "pandoc",
+        digits=c(3,3,3,3),
+        caption = "MLR Model Estimating NBA Draft Rank After Elastic Net Regression With Cross Validation For 2013-2023 NBA Top Ten College Draft Picks",
+        col.names = c("Predictor","Estimate","Lambda")) %>%
+  kable_styling(latex_options = "hold_position")
+
+# Make predictions
+predictions <- elastic_model2 %>% 
+  predict(x2)
+
+# Model performance
+# (a) Prediction error, RMSE
+elastic_model2_RMSE <- RMSE(predictions, test.data$Rank)
+# (b) R-square
+elastic_model2_R2 <- R2(predictions, test.data$Rank)
+
+elastic_model2_RMSE
+elastic_model2_R2
+```
+
+```{r}
+#PCA
+prep_data <- recipe(Rank ~ ., data = train.data) |>
+  step_dummy(all_nominal_predictors()) |> 
+  step_normalize(all_predictors())
+
+PCR_10foldcv <- vfold_cv(train.data, v = 10)
+tune_df <- data.frame(M = seq_len(ncol(train.data) - 1))
+
+prep_data_pca <- prep_data |> 
+  step_pca(all_predictors(), num_comp = tune("M"))
+linear_spec <- linear_reg()
+
+workflow() |>
+  add_model(linear_spec) |> 
+  add_recipe(prep_data_pca) -> pca_workflow
+
+pca_workflow |>
+  tune_grid(resamples = PCR_10foldcv, grid = tune_df) -> pca_tune
+
+
+pca_tune |>
+  collect_metrics() |>
+  select(M, .metric, mean) |>
+  pivot_wider(names_from = .metric, values_from = mean) |> 
+  ggplot() +
+  geom_line(aes(M, rmse^2)) +
+  geom_point(aes(M, rmse^2))
+
+show_best(pca_tune, metric = "rmse", n = 1)
+
+#Final fit
+PCR_final <- finalize_workflow(pca_workflow, 
+                               select_best(pca_tune, metric = "rmse"))
+
+PCR_final_fit <- fit(PCR_final, data = train.data)
+
+postResample(predict(PCR_final_fit, test.data), test.data$Rank)
+```
+
+
+
+
